@@ -255,6 +255,9 @@ class RTree(object):
                     cur_dist = 0
 
                     for i in range(0, k) :
+                        if option_mbr[i] == 0:
+                            continue
+
                         for ombr in option_mbr[i] :
                             dist.append(tmbr.minDistance(ombr)/max_dist)
                             obj.append(ombr.name)
@@ -262,7 +265,7 @@ class RTree(object):
                     sort = sorted(zip(dist, obj))
 
                     for i in range(0, len(sort)) :
-                        if sort[i][0] - cur_dist < (i-j)/R :
+                        if be * (sort[i][0] - cur_dist) < ga * (i-j)/R :
                             c = c + (i-j)
                             _obj.append(sort[i][1])
                             cur_dist = sort[i][0]
@@ -286,6 +289,9 @@ class RTree(object):
                 mx = 0
 
                 for i in range(0, k) :
+                    if option_mbr[i] == 0 :
+                        continue
+
                     for ombr in option_mbr[i] :
                         if ombr.entries :
                             for child in ombr.entries :
@@ -355,12 +361,15 @@ class RTree(object):
         return cost_LB, [t]+_obj
 
 
-    def IPM1(self, target, inx, max_dist, qx, qy) :
+    def IPM1(self, target, inx, max_dist, qx, qy, al, be, ga) :
         q = queue.Queue()
         min_cost = 999
         V = []
         root = [0]*(len(inx)+1)
         R = len(inx)+1
+        ntarget = 0
+        noption = 0
+        _ob = 0
 
         root[0] = [self.root]
         
@@ -383,18 +392,18 @@ class RTree(object):
                 _max = -9999
                 if tmbr.entries :
                     for child in tmbr.entries :
+                        ntarget= ntarget + 1
                         if target & child.sig != 0 :
                             t.append(child)
-                            if _min > query.minDistance(child)/max_dist :
-                                _min = query.minDistance(child)/max_dist
-                                _max = query.maxDistance(child)/max_dist
-
 
                 else :
                     dist = [99] * len(inx)
                     o = [0] * len(inx)
 
                     for i in range(0, len(inx)) :
+                        if option_mbr[i] == 0 :
+                            continue
+
                         for ombr in option_mbr[i] :
                             if dist[i] > tmbr.minDistance(ombr)/max_dist:
                                 dist[i] = tmbr.minDistance(ombr)/max_dist
@@ -408,24 +417,26 @@ class RTree(object):
                     cur_dist = 0 
 
                     for i in range(0, len(_sort)) :
+                        _ob = _ob + 1
+
                         if _sort[i][0] == 99 :
                             break
 
                         if i == 0 :
-                            if _sort[i][0] < (1/R) :
+                            if be * _sort[i][0] < ga * (1/R) :
                                 cur_dist = _sort[i][0]
-                                _object.append(_sort[i][1])
                                 c = c + 1
+                                _object.append(_sort[i][1])
                                 j = 0
                         
                         else :
-                            if _sort[i][0] - cur_dist < (i-j)/R :
+                            if be * (_sort[i][0] - cur_dist) < ga * (i-j)/R :
                                 c = c + (i-j)
                                 cur_dist = _sort[i][0]
-                                j = i
                                 _object.append(_sort[i][1])
+                                j = i
 
-                    _cost = query.minDistance(tmbr)/max_dist + cur_dist + (1 - c/R)
+                    _cost = al * query.minDistance(tmbr)/max_dist + be * cur_dist + ga * (1 - c/R)
 
                     if min_cost > _cost :
                         min_cost = _cost
@@ -436,9 +447,137 @@ class RTree(object):
                 
                 for i in range(0, len(inx)) :
                     qu = queue.PriorityQueue()
+                    if option_mbr[i] == 0:
+                        continue
+
                     for ombr in option_mbr[i] :
                         if ombr.entries :
                             for child in ombr.entries :
+                                noption = noption + 1
+                                if child.sig & inx[i] != 0 :
+                                    dist = tmbr.minDistance(child)
+                                    qu.put((dist, child))
+
+
+                        _mx = -999
+                        while not qu.empty() :
+                            _q = qu.get()
+
+                            if op[i] == 0 :
+                                op[i] = [_q[1]]
+
+                            else :
+                                op[i].append(_q[1])
+
+                
+                q.put([[tmbr]]+op)
+
+        print('target : ', ntarget)
+        print('option : ', noption)
+        print('object : ', _ob)
+
+        print(min_cost, end = ' ')
+        for i in range(0, len(V)) :
+            if i == 0 :
+                print(V[i].name, end = ' ')
+            else :
+                print(V[i], end = ' ')
+        print()
+
+
+        return ntarget, noption, _ob
+
+
+    def _IPM1(self, target, inx, max_dist, qx, qy, al, be, ga) :
+        q = queue.Queue()
+        min_cost = 999
+        V = []
+        root = [0]*(len(inx)+1)
+        R = len(inx)+1
+        _object = 0
+        ntarget = 0
+        noption = 0
+
+        root[0] = [self.root]
+        
+        for i in range(0, len(inx)) :
+            if self.root.sig & inx[i] != 0 :
+                root[i+1] = [self.root]
+
+        q.put_nowait(root)
+        query = Node(qx,qy,qx,qy,0,0," ")
+
+        while not q.empty() :
+            mbr = q.get()
+
+            target_mbr = mbr[0]
+            option_mbr = mbr[1:]
+
+            t = []
+            for tmbr in target_mbr :
+                _min = 9999
+                _max = -9999
+                if tmbr.entries :
+                    for child in tmbr.entries :
+                        ntarget = ntarget + 1
+
+                        if target & child.sig != 0 :
+                            t.append(child)
+                            if _min > query.minDistance(child)/max_dist :
+                                _min = query.minDistance(child)/max_dist
+                                _max = query.maxDistance(child)/max_dist
+
+
+                else :
+                    dist = [99] * len(inx)
+                    o = [0] * len(inx)
+
+                    for i in range(0, len(inx)) :
+                        if option_mbr[i] == 0 :
+                            continue
+
+                        for ombr in option_mbr[i] :
+                            if dist[i] > tmbr.minDistance(ombr)/max_dist:
+                                dist[i] = tmbr.minDistance(ombr)/max_dist
+                                o[i] = ombr
+
+                    for i in range(0, len(inx) + 1) :
+                        for l in list(combinations(o, i)) :
+
+                            li = list(l)
+
+                            cost = al * query.minDistance(tmbr)/max_dist
+                            maxdist = 0
+
+                            for _l in li :
+                                if _l == 0 :
+                                    continue
+
+                                if tmbr.minDistance(_l)/max_dist > maxdist :
+                                    maxdist = tmbr.minDistance(_l)/max_dist
+
+                                _object = _object + 1
+
+                            cost = cost + be * maxdist + ga * (1 - (i+1-li.count(0))/R)
+
+                        if min_cost > cost :
+                            min_cost = cost
+                            V = [tmbr] + o
+                            
+
+            for tmbr in t : 
+                op = [0]*len(inx)
+                
+                for i in range(0, len(inx)) :
+                    qu = queue.PriorityQueue()
+                    if option_mbr[i] == 0 :
+                        continue
+
+                    for ombr in option_mbr[i] :
+                        if ombr.entries :
+                            for child in ombr.entries :
+                                noption = noption + 1
+
                                 if child.sig & inx[i] != 0 :
                                     dist = tmbr.minDistance(child)
                                     qu.put((dist, child))
@@ -458,14 +597,19 @@ class RTree(object):
                 q.put([[tmbr]]+op)
     
 
+        print('target : ', ntarget)
+        print('option : ', noption)
+        print('object : ', _object)
+
         print(min_cost, end = ' ')
         for i in range(0, len(V)) :
-            if i == 0 :
-                print(V[i].name, end = ' ')
-            else :
-                print(V[i], end = ' ')
+            if V[i] == 0 :
+                continue
+
+            print(V[i].name, end = ' ')
         print()
 
+        return ntarget, noption, _object
 
     def IPM2(self, target, option, max_dist, qx, qy) :
         q = queue.PriorityQueue()
@@ -669,6 +813,216 @@ class RTree(object):
         
         start = time.time()
         V = []
+        
+        cost_V, V = self.appro(target, inx, max_dist, qx, qy, al, be, ga)
+        appro = copy.deepcopy(cost_V)
+
+        _ob = 0
+
+        """
+        print(cost_V, end = ' ')
+        for v in V :
+            print(v , end = ' ')
+        print()
+
+        print('**appro :', time.time() - start)
+        """
+
+        min_cost = cost_V
+
+        k = len(inx)
+        root = [0]*(k+1)
+        root[0] = [self.root]
+
+        R = k+1
+
+        for i in range(0, k) :
+            if self.root.sig & inx[i] != 0 :
+                root[i+1] = [self.root]
+
+        q.put_nowait( (0, root) )
+        query = Node(qx,qy,qx,qy,0,0," ")
+
+        ntarget = 0
+        ptarget = 0
+        noption = 0
+        poption = 0
+        nLB = 0
+        pLB = 0
+
+        mindist={}
+        maxdist={}
+        count = 0
+
+        while not q.empty() :
+            qu = q.get()
+
+            count = count + 1
+
+            mbr = qu[1]
+            LB = qu[0]
+
+            if LB > cost_V : 
+                break
+
+            target_mbr = mbr[0]
+            option_mbr = mbr[1:]
+
+            t = []
+            for tmbr in target_mbr :
+
+                if tmbr.entries :
+                    for child in tmbr.entries :
+                        ntarget = ntarget + 1
+                        if child.sig & target != 0 :
+                            if cost_V < al * query.minDistance(child)/max_dist :
+                                continue
+
+                            t.append(child)
+                                
+                else :
+                    dist = [99] * k
+                    o = [0] * k
+
+                    for i in range(0, k) :
+                        if option_mbr[i] == 0 :
+                            continue
+
+                        for ombr in option_mbr[i] :
+                            if ombr.sig & inx[i] != 0 :
+                                if dist[i] > tmbr.minDistance(ombr)/max_dist:
+                                    dist[i] = tmbr.minDistance(ombr)/max_dist
+                                    o[i] = ombr.name
+
+
+                    _sort = sorted(zip(dist,o))
+                    _object = []
+                    flag = False
+                    c = 1 
+                    j = -1
+                    cur_dist = 0 
+
+                    for i in range(0, len(_sort)) :
+                        _ob = _ob + 1
+
+                        if i == 0 :
+                            if be * _sort[i][0] < ga * (1/R) :
+                                cur_dist = _sort[i][0]
+                                _object.append(_sort[i][1])
+                                c = c + 1
+                                j = 0
+                        
+                        else :
+                            if be * (_sort[i][0] - cur_dist) < ga * (i-j)/R :
+                                c = c + (i-j)
+                                cur_dist = _sort[i][0]
+                                j = i
+                                _object.append(_sort[i][1])
+
+                    _cost = al * query.minDistance(tmbr)/max_dist + be * cur_dist + ga * (1 - c/R)
+
+                    if min_cost > _cost :
+                        min_cost = _cost
+                        V = [tmbr.name] + _object
+
+            for tmbr in t : 
+                op = [0] * k
+               
+                for i in range(0, k) :
+                    _qu = queue.PriorityQueue()
+                    if option_mbr[i] == 0 :
+                        continue
+
+                    for ombr in option_mbr[i] :
+                        if ombr.entries :
+                            for child in ombr.entries :
+                                noption = noption + 1
+                                if child.sig & inx[i] != 0 :
+                                    _qu.put((tmbr.minDistance(child)/max_dist, child))
+                                        
+                    _mx = -99
+                    flag = True
+                    while not _qu.empty() :
+                        _q = _qu.get()
+
+                        if _mx == -99 :
+                            _mx = tmbr.maxDistance(_q[1])/max_dist
+                                
+                        if _q[0] > _mx :
+                            poption = poption + _qu.qsize()
+                            break
+
+                        if op[i] == 0 :
+                            op[i] = [_q[1]]
+
+                        else :
+                            op[i].append(_q[1])
+
+                dist = []
+                _inx = []
+                cur_dist = 0
+                j = -1
+                c = 1
+
+                for i in range(0, k) :
+                    if op[i] == 0 :
+                        continue
+
+                    if op[i][0] == 0 :
+                        continue
+
+                    dist.append(tmbr.minDistance(op[i][0])/max_dist)
+                    _inx.append(i)
+
+                _sort = sorted(zip(dist, _inx))
+
+                """
+                for i in range(0, len(sort)) :
+                    if sort[i][0] - cur_dist < (i-j)/R :
+                        c = c + (i-j)
+                        cur_dist = sort[i][0]
+                        j = i
+                """
+                for i in range(0, len(_sort)) :
+                    if _sort[i][0] == 99 :
+                        break
+
+                    if i == 0 :
+                        if be * _sort[i][0] < ga * (1/R) :
+                            cur_dist = _sort[i][0]
+                            c = c + 1
+                            j = 0
+
+                    else :
+                        if be * (_sort[i][0] - cur_dist) < ga * (i-j)/R :
+                            c = c + (i-j)
+                            cur_dist = _sort[i][0]
+                            j = i
+
+                _cost_LB = al * query.minDistance(tmbr)/max_dist + be * cur_dist + ga * (1- c/R)
+
+                if _cost_LB < cost_V :
+                    q.put ( (_cost_LB, [[tmbr]]+op) )
+
+                else :
+                    ptarget = ptarget + 1
+
+        print('target : ', ntarget)
+        print('option : ', noption)
+        print('object : ', _ob)
+
+        print(min_cost, end = ' ')
+        for i in range(0, len(V)) :
+            print(V[i], end = ' ')
+        print()
+
+        return ntarget,  noption, _ob, appro/min_cost
+    
+    def _IPM4(self, target, inx, max_dist, qx, qy, al, be, ga) :
+        q = queue.PriorityQueue()
+
+        start = time.time()
+        V = []
         cost_V, V = self.appro(target, inx, max_dist, qx, qy, al, be, ga)
         print(cost_V, end = ' ')
         for v in V :
@@ -711,7 +1065,7 @@ class RTree(object):
             mbr = qu[1]
             LB = qu[0]
 
-            if LB > cost_V : 
+            if LB > cost_V :
                 continue
 
             target_mbr = mbr[0]
@@ -724,17 +1078,20 @@ class RTree(object):
                     for child in tmbr.entries :
                         ntarget = ntarget + 1
                         if child.sig & target != 0 :
-                            if cost_V < al * query.minDistance(child)/max_dist :
+                            if cost_V < query.minDistance(child)/max_dist :
                                 ptarget = ptarget + 1
                                 continue
 
                             t.append(child)
-                                
+
                 else :
                     dist = [99] * k
                     o = [0] * k
 
                     for i in range(0, k) :
+                        if option_mbr[i] == 0 :
+                            continue
+
                         for ombr in option_mbr[i] :
                             if ombr.sig & inx[i] != 0 :
                                 if dist[i] > tmbr.minDistance(ombr)/max_dist:
@@ -745,20 +1102,20 @@ class RTree(object):
                     _sort = sorted(zip(dist,o))
                     _object = []
                     flag = False
-                    c = 1 
+                    c = 1
                     j = -1
-                    cur_dist = 0 
+                    cur_dist = 0
 
                     for i in range(0, len(_sort)) :
                         if i == 0 :
-                            if _sort[i][0] < (1/R) :
+                            if be * _sort[i][0] < ga * (1/R) :
                                 cur_dist = _sort[i][0]
                                 _object.append(_sort[i][1])
                                 c = c + 1
                                 j = 0
-                        
+
                         else :
-                            if _sort[i][0] - cur_dist < (i-j)/R :
+                            if be * (_sort[i][0] - cur_dist) < ga * (i-j)/R :
                                 c = c + (i-j)
                                 cur_dist = _sort[i][0]
                                 j = i
@@ -770,61 +1127,76 @@ class RTree(object):
                         min_cost = _cost
                         V = [tmbr.name] + _object
 
-            for tmbr in t : 
+            for tmbr in t :
                 op = [0] * k
-               
+
+                _min = [-1] * k
+
                 for i in range(0, k) :
                     _qu = queue.PriorityQueue()
+
+                    if option_mbr[i] == 0 :
+                        continue
+
                     for ombr in option_mbr[i] :
                         if ombr.entries :
                             for child in ombr.entries :
                                 noption = noption + 1
                                 if child.sig & inx[i] != 0 :
                                     _qu.put((tmbr.minDistance(child)/max_dist, child))
-                                        
+
                     _mx = -99
                     flag = True
+
                     while not _qu.empty() :
                         _q = _qu.get()
 
                         if _mx == -99 :
                             _mx = tmbr.maxDistance(_q[1])/max_dist
-                                
-                        if _q[0] > _mx :
-                            poption = poption + _qu.qsize()
+
+                        if _min[i] == -1 :
+                            _min[i] = _q[0]
+
+
+                        cost_min = al * query.minDistance(tmbr)/max_dist + be * max(max(_min), _q[0])
+                        #print(cost_min, cost_V)
+                           
+                        if cost_min > cost_V :
                             break
 
-                        if op[i] == 0 :
-                            op[i] = [_q[1]]
-
                         else :
-                            op[i].append(_q[1])
+                            if op[i] == 0 :
+                                op[i] = [_q[1]]
+
+                            else :
+                                op[i].append(_q[1])
 
                 dist = []
                 _inx = []
                 cur_dist = 0
-                j = -1
                 c = 1
+                j = -1
+
+                sort = sorted(_min)
+                _sort = []
 
                 for i in range(0, k) :
-                    dist.append(tmbr.minDistance(op[i][0])/max_dist)
-                    _inx.append(i)
+                    if _min[i] != -1 :
+                        _sort.append(_min[i])
 
-                sort = sorted(zip(dist, _inx))
 
-                for i in range(0, len(sort)) :
-                    if sort[i][0] - cur_dist < (i-j)/R :
+                for i in range(0, len(_sort)) :
+                    if be * (_sort[i] - cur_dist) < ga * (i-j)/R :
                         c = c + (i-j)
-                        cur_dist = sort[i][0]
+                        cur_dist = _sort[i]
                         j = i
+
 
                 _cost_LB = al * query.minDistance(tmbr)/max_dist + be * cur_dist + ga * (1- c/R)
 
                 if _cost_LB < cost_V :
                     q.put ( (_cost_LB, [[tmbr]]+op) )
 
-                else :
-                    ptarget = ptarget + 1
 
         print(min_cost, end = ' ')
         for i in range(0, len(V)) :
@@ -834,8 +1206,9 @@ class RTree(object):
         print('target : ', ntarget, ptarget)
         print('option : ', noption, poption)
 
-        return ntarget, ptarget, noption, poption
-        
+        return ntarget, ptarget, noption
+
+
     def IPM4(self, target, inx, max_dist, qx, qy, al, be, ga) :
         q = queue.PriorityQueue()
         distance = {}
@@ -843,21 +1216,13 @@ class RTree(object):
         start = time.time()
         V = []
         cost_V, V = self.appro(target, inx, max_dist, qx, qy, al, be, ga)
-        """
-        print(cost_V, end = ' ')
-        for v in V :
-            print(v , end = ' ')
-        print()
-
-        print('**appro :', time.time() - start)
-        """
 
         min_cost = cost_V
 
         k = len(inx)
         root = [0]*(k+1)
         root[0] = [self.root]
-
+        _ob = 0
         R = k+1
 
         for i in range(0, k) :
@@ -939,15 +1304,17 @@ class RTree(object):
                     cur_dist = 0 
 
                     for i in range(0, len(_sort)) :
+                        _ob = _ob + 1
+
                         if i == 0 :
-                            if _sort[i][0] < (1/R) :
+                            if be * _sort[i][0] < ga * (1/R) :
                                 cur_dist = _sort[i][0]
                                 _object.append(_sort[i][1])
                                 c = c + 1
                                 j = 0
                         
                         else :
-                            if _sort[i][0] - cur_dist < (i-j)/R :
+                            if be * (_sort[i][0] - cur_dist) < ga * (i-j)/R :
                                 c = c + (i-j)
                                 cur_dist = _sort[i][0]
                                 j = i
@@ -968,6 +1335,9 @@ class RTree(object):
             for tmbr in t : 
                 op = [0] * k
                
+                start = time.time()
+                qs =0
+
                 for i in range(0, k) :
                     _qu = queue.PriorityQueue()
                     for ombr in option_mbr[i] :
@@ -985,6 +1355,9 @@ class RTree(object):
                                         
                     _mx = -99
                     flag = True
+
+                    qs = qs + _qu.qsize()
+
                     while not _qu.empty() :
                         _q = _qu.get()
 
@@ -1025,18 +1398,18 @@ class RTree(object):
                 _cur_dist = 0
 
                 for i in range(0, len(sort)) :
-                    if sort[i][0] - cur_dist < (i-j)/R :
+                    if be * (sort[i][0] - cur_dist) < ga * ((i-j)/R) :
                         c = c + (i-j)
                         cur_dist = sort[i][0]
                         j = i
+
+                key_q = tuple([query])
+                key_t = tuple([tmbr])
 
                 _cost_LB = al * distance[key_q + key_t] + be * cur_dist + ga * (1- c/R)
 
                 if _cost_LB > cost_V :
                     continue
-
-                key_q = tuple([query])
-                key_t = tuple([tmbr])
 
                 _c = c
                 _j = j
@@ -1072,9 +1445,9 @@ class RTree(object):
                         continue
 
                     else :
-                        x = self.bisearch(be, tmbr, op[_inx[i]], distance, cost_V - ( 1 - (_c)/R + al * distance[key_q + key_t]))
+                        x = self.bisearch(be, tmbr, op[_inx[i]], distance, cost_V - ( ga * (1 - (_c)/R) + al * distance[key_q + key_t]))
                         op[_inx[i]] = op[_inx[i]][0:x]
-                    
+                
 
                 if _cost_LB < cost_V :
                     q.put ( (_cost_LB, [[tmbr]]+op) )
@@ -1082,15 +1455,16 @@ class RTree(object):
                 else :
                     ptarget = ptarget + 1
 
+        print('target : ', ntarget)
+        print('option : ', noption)
+        print('object : ', _ob)
+
         print(min_cost, end = ' ')
         for i in range(0, len(V)) :
             print(V[i], end = ' ')
         print()
 
-        print('target : ', ntarget, ptarget)
-        print('option : ', noption)
-
-        return ntarget, ptarget, noption
+        return ntarget, noption, _ob
         
     def bisearch(self, be, tmbr, op, distance, cost) :
         left = 0
@@ -1111,109 +1485,431 @@ class RTree(object):
             
         return left+1
 
-    def makeList (self, target, option, appro_cost, k, enum, max_dist, qx, qy, o, _t, qu, ch) :
+    def IPM5(self, target, inx, max_dist, qx, qy, al, be, ga) :
+        q = queue.PriorityQueue()
+        distance = {}
+        
+        start = time.time()
+        V = []
+        cost_V, V = self.appro(target, inx, max_dist, qx, qy, al, be, ga)
+
+        min_cost = cost_V
+
+        k = len(inx)
+        root = [0]*(k+1)
+        root[0] = [self.root]
+
+        R = k+1
+
+        for i in range(0, k) :
+            if self.root.sig & inx[i] != 0 :
+                root[i+1] = [self.root]
+
+        q.put_nowait( (0, root) )
+        query = Node(qx,qy,qx,qy,0,0," ")
+
+        ntarget = 0
+        ptarget = 0
+        noption = 0
+        poption = 0
+        nLB = 0
+        pLB = 0
+
+        mindist={}
+        maxdist={}
+        visit = {}
+        count = 0
+
+        while not q.empty() :
+            qu = q.get()
+
+            count = count + 1
+
+            mbr = qu[1]
+            LB = qu[0]
+
+            if LB > cost_V : 
+                break
+
+            target_mbr = mbr[0]
+            option_mbr = mbr[1:]
+
+            t = []
+            for tmbr in target_mbr :
+
+                if tmbr.entries :
+                    for child in tmbr.entries :
+                        ntarget = ntarget + 1
+                        if child.sig & target != 0 :
+                            key_q = tuple([query])
+                            key_c = tuple([child])
+
+                            if not distance.get(key_q + key_c) :
+                                distance[key_q + key_c] = query.minDistance(child)/max_dist
+
+                            if cost_V < al * distance[key_q + key_c] :
+                                ptarget = ptarget + 1
+                                continue
+
+                            t.append(child)
+                                
+                else :
+                    dist = [99] * k
+                    o = [0] * k
+
+                    for i in range(0, k) :
+                        if option_mbr[i] == 0 :
+                            continue
+
+                        for ombr in option_mbr[i] :
+                            if ombr.sig & inx[i] != 0 :
+                                key_o = tuple([ombr])
+                                key_t = tuple([tmbr])
+
+                                if not distance.get(key_t + key_o) :
+                                    distance[key_t + key_o] = tmbr.minDistance(ombr)/max_dist
+
+                                if dist[i] > distance[key_t + key_o]:
+                                    dist[i] = distance[key_t + key_o]
+                                    o[i] = ombr.name
+
+                    _sort = sorted(zip(dist,o))
+                    _object = []
+                    c = 1 
+                    j = -1
+                    cur_dist = 0 
+
+                    for i in range(0, len(_sort)) :
+                        if i == 0 :
+                            if _sort[i][0] < (1/R) :
+                                cur_dist = _sort[i][0]
+                                _object.append(_sort[i][1])
+                                c = c + 1
+                                j = 0
+                        
+                        else :
+                            if _sort[i][0] - cur_dist < (i-j)/R :
+                                c = c + (i-j)
+                                cur_dist = _sort[i][0]
+                                j = i
+                                _object.append(_sort[i][1])
+
+                    key_q = tuple([query])
+                    key_t = tuple([tmbr])
+
+                    if not distance.get(key_q + key_t) :
+                        distance[key_q + key_t] = query.minDistance(tmbr)/max_dist
+
+                    _cost = al * distance[key_q + key_t] + be * cur_dist + ga * (1 - c/R)
+
+                    if min_cost > _cost :
+                        min_cost = _cost
+                        V = [tmbr.name] + _object
+
+
+            """
+            for tmbr in t :
+                op = [0] * k
+
+                key_t = tuple([tmbr])
+
+                _min = [-1] * k
+                cost_min = 99
+
+                for i in range(0, k) :
+                    _qu = queue.PriorityQueue()
+
+                    if option_mbr[i] == 0 :
+                        continue
+
+                    for ombr in option_mbr[i] :
+                        if ombr.entries :
+                            for child in ombr.entries :
+                                noption = noption + 1
+                                if child.sig & inx[i] != 0 :
+                                    key_c = tuple([child])
+
+                                    if not distance.get(key_t + key_c) :
+                                        distance[key_t + key_c] = tmbr.minDistance(child)/max_dist
+
+                                    _qu.put((distance[key_t + key_c], child))
+
+                    _mx = -99
+                    while not _qu.empty() :
+                        _q = _qu.get()
+
+                        if _mx == -99 :
+                            _mx = tmbr.maxDistance(_q[1])/max_dist
+                            _min[i] = _q[0]
+
+                        if _q[0] > _mx :
+                            break
+
+
+                        cost_AB = al * distance[key_q + key_t] + be * _q[0] + ga * (1 - (k+1 - _min.count(-1))/R)
+                        
+                        if cost_AB > cost_V :
+                            break
+
+                        else :
+                            if op[i] == 0 :
+                                op[i] = [_q[1]]
+
+                            else :
+                                op[i].append(_q[1])
+
+                cost_LB = al * distance[key_q + key_t] + be * max(_min) + ga * (1 - (k+1-_min.count(-1))/R)
+                if cost_LB < cost_V :
+                    q.put ( (cost_LB, [[tmbr]]+op) )
+
+
+        print(min_cost, end = ' ')
+        for i in range(0, len(V)) :
+            print(V[i], end = ' ')
+        print()
+
+        print('target : ', ntarget, ptarget)
+        print('option : ', noption)
+
+        return ntarget, ptarget, noption
+
+        """
+            for tmbr in t :
+                visit = {}
+                _qu = queue.PriorityQueue()
+
+                for i in range(0, k) :
+                    if option_mbr[i] != 0 :
+                        for ombr in option_mbr[i] :
+                            if ombr.entries :
+                                for child in ombr.entries :
+                                    noption = noption + 1
+                                    if child.sig & inx[i] != 0 :
+                                        key_t = tuple([tmbr])
+                                        key_c = tuple([child])
+
+                                        if not distance.get(key_t + key_c) :
+                                            distance[key_t + key_c] = tmbr.minDistance(child)/max_dist
+                                        
+                                        if not visit.get(key_c) :
+                                            visit[key_c] = 1
+                                            _qu.put((distance[key_t + key_c], child))
+
+                                        #_qu.put((distance[key_t + key_c], child))
+
+                                            
+                _min = [-1] * k
+                _max = [0] * k
+                op = [0] * k
+                _op = [0] * k
+
+                flag = True
+
+                min_LB = 99
+
+                key_q = tuple([query])
+                key_t = tuple([tmbr])
+
+                while not _qu.empty() :
+
+                    _q = _qu.get()
+
+                    for i in range(0, k) :
+                        if _q[1].sig & inx[i] != 0:
+
+                            if _min[i] == -1 :
+                                _min[i] = _q[0]                                
+ 
+                            cost_AB = al * distance[key_q + key_t] + be * max(max(_min),_q[0]) + ga * (1 - (k - _min.count(-1)+1)/R)
+
+                            if min_LB > cost_AB :
+                                min_LB = cost_AB
+
+                            if cost_AB > cost_V :
+                                if _min.count(-1) == 0 :
+                                    flag = False
+                                    break
+
+                                else :
+                                    if _op[i] == 0 :
+                                        _op[i] = [_q[1]]
+                                    else :
+                                        _op[i].append(_q[1])
+
+                            else :
+                                for j in range(0, k) :
+                                    if _op[j] != 0 :
+                                        if op[j] == 0 :
+                                            op[j] = _op[j]
+                                        else :
+                                            op[j] = op[j] + _op[j]
+
+                                _op = [0] * k
+
+                                if op[i] == 0 :
+                                    op[i] = [_q[1]]
+                                else :
+                                    op[i].append(_q[1])
+
+                    if flag == False :
+                        break
+
+
+                
+                if flag == True :
+                    for i in range(0, k) :
+                        if _op[i] != 0 :
+                            if op[i] == 0 :
+                                op[i] = _op[i]
+                            else :
+                                op[i] = op[i] + _op[i]
+
+
+                '''
+                _sort = sorted(_min)
+
+                min_LB= 99
+
+                for i in range(0, k) :
+                    cost_LB = al * distance[key_q + key_t] + be * _sort[i] + ga * (1 - (i+1)/R)
+
+                    if min_LB > cost_LB :
+                        min_LB = cost_LB
+                '''
+ 
+                q.put( (min_LB, [[tmbr]]+op) )
+
+        print(min_cost, end = ' ')
+        for i in range(0, len(V)) :
+            print(V[i], end = ' ')
+        print()
+
+        print('target : ', ntarget)
+        print('option : ', noption)
+
+        return ntarget,  noption
+
+    def collective (self, target, inx, max_dist, qx, qy, al, be, ga) :
         global dic
-        global min_cost
-        global V
+        global dist
+        dic = {}
+        dist = {}
 
-        if len(enum) <= k and ch == True:
-            if not _t.entries :
+        query = Node(qx, qy, qx, qy, 0, 0, " ")
+        k = len(inx)
+        root = [self.root] * (k+1)
+        V = []
 
-                lb = self.LBcost(target, option, max_dist, qx, qy, _t, enum, True)
-                if lb == -1 :
-                    return
+        appro_cost, V = self.appro(target, inx, max_dist, qx, qy, al, be, ga)
 
-                flag = False
+        qu = queue.PriorityQueue()
 
-                for e in enum :
-                    key_e = tuple([e])
-                    if not dic.get(e) :
-                        dic[e] = 1
-                        flag = True
+        qu.put((0, root))
+        min_cost = 99
+        nt = 0
+        no = 0
+        ob = 0
 
-                if flag == False :
-                    return
+        while not qu.empty() :
 
-                if appro_cost >= lb :
-                    if min_cost > lb :
-                        min_cost = lb
-                        V = [_t] + enum
+            q = qu.get()
+            mbr = q[1]
 
-                    else :
-                        return
+            target_mbr = mbr[0]
+            option_mbr = mbr[1:]
+            _object = []
+
+            for i in range(0, k) :
+                o = []
+                 
+                if option_mbr[i].entries :
+                    for child in option_mbr[i].entries :
+                        no = no + 1
+                        o.append(child)
 
                 else :
-                    return
+                    no = no + 1
+                    o.append(option_mbr[i])
+
+                _object.append(o)
+
+            ns = []
+            enum = []
+
+            for e in list(product(*_object)) :
+                enum = list(copy.deepcopy(e))
+                self.makeList(k, ns, enum, _object)
+
+            print(ns)
+
+            if target_mbr.entries :
+                for child in target_mbr.entries :
+                    nt = nt + 1
+                    for n in ns :
+                        LB = self.LBcost(query, child, n, max_dist, al, be, ga, k+1)
+                        if LB < appro_cost :
+                            qu.put((LB, [child] + n, LB))
 
             else :
-                lb = self.LBcost(target, option, max_dist, qx, qy, _t, enum, False)
+                for tmbr in target_mbr :
+                    nt = nt + 1
+                    for n in ns :
+                        ob = ob + 1
+                        cost = self.LBcost(query, tmbr, n, max_dist, al, be, ga, k+1)
 
-                if appro_cost >= lb :
-                    qu.put ( (lb, [[_t] + enum]) )
-                    print(min_cost, lb, enum)
-
-                else :
-                    return
-
-
-        for i in range(0, len(o)) :
-            for _o in o[i] :
-                if not _o in enum :
-                    enum.append(_o)
-                    self.makeList(target, option, appro_cost, k, enum, max_dist, qx, qy, o, _t, qu, True) 
-                    enum.remove(_o)
+                        if min_cost > cost :
+                            min_cost = cost
+                            V = [tmbr]+n
 
 
-    def LBcost (self, target, option, max_dist, qx, qy, _t, l, ch) :
-        global dist
+        print(min_cost, end = ' ')
+        for v in V :
+            print(v.name, end = ' ')
+        print()
 
-        query = Node(qx, qy, qx, qy , 0, 0, " ")
+        print('target : ', nt)
+        print('option : ', no)
+        print('object : ', ob)
+
+        return nt, no, ob
+
+    def makeList (self, k, ns, enum, _object) :
+        
+        if len(enum) <= k :
+            ns.append(enum)
+            for i in range(0, len(_object)) :
+                for _o in _object[i] :
+                    if not _o in enum :
+                        if not dic.get(tuple([_o])) :
+                            dic[_o] = 1
+                            enum.append(_o)
+                            self.makeList(k, ns, enum, _object) 
+                            enum.remove(_o)
+
+
+        else :
+            return
+
+
+    def LBcost (self, query, target, ns, max_dist, al, be, ga, R) :
         key_q = tuple([query])
-        key_t = tuple([_t])
+        key_t = tuple([target])
 
         if not dist.get(key_q + key_t) :
             dist[key_q + key_t] = query.minDistance(_t)/max_dist
 
-        cost = dist[key_q + key_t]
-        _op = [0] * 60
-        _mn = 99
-        _mx = 0
+        cost = al * dist[key_q + key_t]
 
-        for op in l :
-            for i in range(0, 60) :
-                if op.sig[i] == 1 and option[i] == 1 :
-                    if ch == True :
-                        if _op[i] == 1 :
-                            return -1
+        maxdist = 0
+        for n in ns :
+            key_n = tuple([n])
+            if not dist.get(key_t + key_n) :
+                dist[key_t + key_n] = target.minDistance(n)/max_dist
 
-                    _op[i] = 1
+            if maxdist < dist[key_t + key_n] :
+                maxdist = dist[key_t + key_n]
 
-                    
-            key_op = tuple([op])
-
-            if not dist.get(key_t + key_op) :
-                dist[ key_t + key_op ] = _t.minDistance(op)/max_dist
-
-
-            if ch == False :
-                if _mn > dist[ key_t + key_op ] :
-                    _mn = dist[ key_t + key_op ]
-
-            if ch == True :
-                if _mx < dist[ key_t + key_op ] :
-                    _mx = dist[ key_t + key_op ]
-
-
-        if _mn == 99 :
-            _mn = 0
-
-        if ch == False :
-            cost = cost + _mn + (1 - (_op.count(1) + 1)/(option.count(1) + 1) )
-
-        elif ch == True :
-            cost = cost + _mx + (1 - (_op.count(1) + 1)/(option.count(1) + 1) )
-
-        return cost
+        cost = cost + be * maxdist + ga * (1 - len(ns)/R)
 
 
     def traverse(self):
@@ -1236,103 +1932,214 @@ class RTree(object):
                     print(t,"\t",e.name, e.x, e.y, e.xx, e.yy, e.feat, e.isLeaf, bin(e.sig), e)
 
 
-    def NNsearch(self, target, option, max_dist, qx, qy) :
-        qu = queue.Queue()
-        R = option.count(1) + 1
-        root = [0]*61
-        root[0] = [self.root]
+    def NNsearch(self, target, _inx, max_dist, qx, qy, al, be, ga) :
+
+        k = len(_inx)
+        mincost = 99
+
+        qu = queue.PriorityQueue()
+        query = Node(qx, qy, qx, qy, 0, 0, " ")
+
+        qu.put( (0, self.root) )
+
+        nt = 0
+        no = 0
+        ob = 0
+
         V = []
 
-        for i in range(1, 61) :
-            if option[i-1] == 1 and self.root.sig[i-1] == 1 :
-                root[i] = [self.root]
+        while not qu.empty() :
+            e = qu.get()
+   
+            """
+            if al * query.minDistance(e[1])/max_dist + ga * (1 - (1 / (k+1)))> mincost :
+                break
+            """
+            
+
+            if e[1].entries :
+                for child in e[1].entries :
+                    nt = nt + 1
+
+                    if child.sig & target != 0 :
+                        qu.put( (query.minDistance(child)/max_dist, child) )
+
+            else :
+                _no = 0
+                option, _no = self.NN(e[1], _inx, max_dist, qx, qy)
+                no = no + _no
+
+                for i in range(0, k+1) :
+                    for op in list(combinations(option, i)) :
+                        ob = ob + 1
+
+                        o = list(op)
+
+                        maxdist = 0
+
+                        for _o in o :
+                            if _o == 0 :
+                                continue
+
+                            if maxdist < e[1].minDistance(_o)/max_dist :
+                                maxdist = e[1].minDistance(_o)/max_dist
+
+
+                        cost = al * query.minDistance(e[1])/max_dist + be * maxdist + ga * (1 - (i+1)/(k+1))
+
+                        if mincost > cost :
+                            mincost = cost
+                            V = [e[1]]+o
+
+
+        print('target : ', nt)
+        print('option : ', no)
+        print('object : ', ob)
+
+        print(mincost, end = ' ')
+        for v in V :
+            if v == 0 :
+                continue
+
+            print(v.name, end = ' ')
+        print()
+
+        return nt, no, ob
+
+
+    def NN(self, target, _inx, max_dist, qx, qy) :
+        
+        no = 0
+
+        k = len(_inx)
+        op = [0] * k
+        dist = [99] * k
+
+        qu = queue.PriorityQueue()
+        qu.put( (0, self.root) )
+
+        while not qu.empty() :
+            e = qu.get()
+
+            if e[1].entries :
+                for child in e[1].entries :
+                    no = no + 1
+                    qu.put( (target.minDistance(child)/max_dist, child) )
+
+            else :
+                for i in range(0, k) :
+                    if e[1].sig & _inx[i] != 0 :
+                        if dist[i] > target.minDistance(e[1])/max_dist :
+                            dist[i] = target.minDistance(e[1])/max_dist
+                            op[i] = e[1]
+
+        return op, no
+
+
+        """
+        k = len(_inx)
+        qu = queue.Queue()
+        R = k + 1
+        V = []
+        nt = 0
+        no = 0
+        _object = 0
 
         query = Node(qx,qy,qx,qy,0,0," ")
 
         min_cost = 999
 
-        qu.put ( (0, self.root) )
+        qu.put ( (0, [self.root]) )
 
         t = []
         while not qu.empty() :
             node = qu.get()
-            tmbr = node[1]
+            tmbr = node[1][0]
 
             if tmbr.entries :
                 for child in tmbr.entries :
-                    for i in range(0, 60) :
-                        if target[i] == 1 and child.sig[i] == 1 :
-                            qu.put( (query.minDistance(child), child) )
+                    nt = nt + 1
+                    if child.sig & target != 0 :
+                        qu.put( (query.minDistance(child), [child]) )
 
             else :
                 t.append(tmbr)
 
         
         for tmbr in t :
-            dist = [99]*60
-            mbr = [0]*60 
+            dist = [99]*k
+            mbr = [0]*k
             q = []
             q.append(self.root)
 
             while q :
                 node = q.pop(0)
-                
-                if node.entries :
-                    for child in node.entries :
-                        for i in range(0, 60) :
-                            if child.sig[i] == 1 and option[i] == 1 :
+
+                for i in range(0, k) :
+                    if node.entries :
+                        for child in node.entries :
+                            no = no + 1
+                            if child.sig & _inx[i] != 0 :
                                 q.append(child)
 
-                else :
-                    for i in range(0, 60) :
-                        if node.sig[i] == 1 and option[i] == 1 :
+                    else :
+                        if node.sig & _inx[i] != 0 :
                             if dist[i] > tmbr.minDistance(node) :
                                 dist[i] = tmbr.minDistance(node)
                                 mbr[i] = node
 
-            option_mbr = []
 
-            for i in range(0, 60) :
-                if option[i] == 1 :
-                    option_mbr.append(mbr[i])
-
-            for i in range(0, len(option_mbr) + 1) :
-                for op in list(combinations(option_mbr, i)) :
+            for i in range(0, k + 1) :
+                for op in list(combinations(mbr, i)) :
                     cand = list(op)
 
-                    cost = query.minDistance(tmbr)/max_dist
+                    cost = al * query.minDistance(tmbr)/max_dist
+                    
                     maxd2 = 0
                     for can in cand :
+                        _object = _object + 1
+
+                        if can == 0 :
+                            continue
+
                         if maxd2 < tmbr.minDistance(can) :
                             maxd2 = tmbr.minDistance(can)
 
+                        _object = _object + 1
+                    
+
                     sim = 1 - (i+1)/R
-                    cost = cost + maxd2/max_dist + sim
+                    cost = cost + be * maxd2/max_dist + ga * sim
 
                     if min_cost > cost :
                         min_cost = cost
                         V = [tmbr]+cand
 
-                        print(min_cost, end =' ')
-                        for v in V :
-                            print(v.name, end =' ')
-                        print()
+
+        print('target : ', nt)
+        print('option : ', no)
+        print('object : ', _object)
+
+        print(min_cost, end =' ')
+        for v in V :
+            if v == 0 :
+                continue
+
+            print(v.name, end =' ')
+        print()
 
 
-        return V
+        return nt, no, _object
+        """
 
 
-    def Type2Appro1(self, target, option, max_dist, qx, qy) :
+    def Type2Appro1(self, target, inx,  max_dist, qx, qy, al, be, ga) :
         U = queue.PriorityQueue()
         V = []
-        uSkiSet = [0] * 60
+        uSkiSet = copy.deepcopy(inx)
+        k = len(inx)
         
-        for i in range(0, 60) :
-            if option[i] == 1 :
-                uSkiSet[i] = 1
-
-        
-        q = Node(qx,qy,qx,qy,0,0," ")
+        query = Node(qx,qy,qx,qy,0,0," ")
 
         U.put((self.root,0))
 
@@ -1340,27 +2147,28 @@ class RTree(object):
             e = U.get()[0]
 
             if not e.entries :
-                if not e.name in V and uSkiSet[e.feat] == 1:
-                    V.append(e)
-                    uSkiSet[e.feat] = 0
+                flag = False
 
-                    flag = False
-                    for i in range(0, 60) :
-                        if uSkiSet[i] == 1 :
-                            flag = True
+                for i in range(0, k) :
+                    if uSkiSet[i] == e.sig :
+                        V.append(e)
+                        uSkiSet[i] = 0
 
-                    if flag == False :
-                        break
+                for i in range(0, k) :
+                    if uSkiSet[i] != 0 :
+                        flag = True
 
-            
+                if flag == False :
+                    break
+                         
             else :
-                for j in range(0, 60) :
-                    if e.sig[j] == 1 and uSkiSet[j] == 1 :
+                for i in range(0, k) :
+                    if e.sig & uSkiSet[i] != 0 :
                         for _e in e.entries :
-                            for i in range(0, 60) :
-                                if _e.sig[i] == 1 and uSkiSet[i] == 1 :
-                                    U.put((_e, q.minDistance(_e)))
-                
+                            for j in range(0, k) :
+                                if _e.sig & uSkiSet[j] != 0 :
+                                    U.put((_e, query.minDistance(_e)/max_dist))
+
 
         return V
 
@@ -1576,4 +2384,5 @@ class RTree(object):
                     setList.append(ns)
 
         return setList
+
 
